@@ -15,25 +15,36 @@ Android 启动优化之冷启动
 本文所指的优化针对冷启动。简单解释一下App的启动过程：
 
 1.点击Launcher，启动程序,通知ActivityManagerService
+
 2.ActivityManagerService通知zygote进程孵化出应用进程，分配内存空间等
+
 3.执行该应用ActivityThread的main()方法
+
 4.应用程序通知ActivityManagerService它已经启动，ActivityManagerService保存一个该应用的代理对象,ActivityManagerService通过它可以控制应用进程
+
 5.ActivityManagerService通知应用进程创建入口的Activity实例，执行它的生命周期
 
 启动过程中Application和入口Activity的生命周期方法按如下顺序调用：
 
 1.Application 构造方法
+
 2.attachBaseContext()
+
 3.onCreate()
+
 4.入口Activity的对象构造
+
 5.setTheme() 设置主题等信息
+
 6.入口Activity的onCreate()
+
 7.入口Activity的onStart()
+
 8.入口Activity的onResume()
+
 9.入口Activity的onAttachToWindow()
+
 10.入口Activity的onWindowFocusChanged()
-
-
 
 # 3.启动时间统计
 
@@ -49,7 +60,9 @@ adb shell am start -W [PackageName]/[PackageName.MainActivity]
 执行成功后将返回三个测量到的时间，这里面涉及到三个时间，ThisTime、TotalTime 和 WaitTime。
 
 WaitTime 是 startActivityAndWait 这个方法的调用耗时;
+
 ThisTime 是指调用过程中最后一个 Activity 启动时间到这个 Activity 的 startActivityAndWait 调用结束;
+
 TotalTime 是指调用过程中第一个 Activity 的启动时间到最后一个 Activity 的 startActivityAndWait 结束。
 
 如果过程中只有一个 Activity ，则 TotalTime 等于 ThisTime。
@@ -67,11 +80,13 @@ adb pull /sdcard/TestApp.trace ~/testSpeed.trace
 打开DDMS分析trace文件,展开后，大多数有以下两个类别:
 
 Parents:调用该方法的父类方法 
+
 Children:该方法调用的子类方法 
 
 如果该方法含有递归调用，可能还会多出两个类别: 
 
 Parents while recursive:递归调用时所涉及的父类方法 
+
 Children while recursive:递归调用时所涉及的子类方法
 
 开发者最关心的数据有： 
@@ -88,6 +103,7 @@ Children while recursive:递归调用时所涉及的子类方法
 平时我们在开发App时，都会设置一个启动页SplashActivity,然后2或3秒后，并且SplashActivity里面可以去做一些MainActivity的数据的预加载，然后需要通过意图传到MainActivity。 
 
 优点：启动速度有所加快 
+
 缺点：最终还是要进入首页，在进入首页的时候，首页复杂的View渲染以及必须在UI线程执行的业务逻辑，仍然拖慢了启动速度。启动页简单执行快，首页复杂执行慢，前轻后重。
 
 思路：能否在启动页的展示的同时，首页的View就能够被加载，首页的业务逻辑就能够被执行？
@@ -101,13 +117,17 @@ Children while recursive:递归调用时所涉及的子类方法
 这样一开始只要加载SplashFragment所展示的布局就Ok了。
 
 
-# 6.启动优化一些思路
+# 5.启动优化一些思路
 
 
-1、避免启动页UI的过度绘制，减少UI重复绘制时间，打开设置中的GPU过度绘制开关，界面整体呈现浅色，特别复杂的界面，红色区域也不应该超过全屏幕的四分之一； 
+1、避免启动页UI的过度绘制，减少UI重复绘制时间，打开设置中的GPU过度绘制开关，界面整体呈现浅色，特别复杂的界面，红色区域也不应该超过全屏幕的四分之一；
+
 2、主线程中的所有SharedPreference能否在非UI线程中进行，SharedPreferences的apply函数需要注意，因为Commit函数会阻塞IO，这个函数虽然执行很快，但是系统会有另外一个线程来负责写操作，当apply频率高的时候，该线程就会比较占用CPU资源。类似的还有统计埋点等，在主线程埋点但异步线程提交，频率高的情况也会出现这样的问题。 
+
 3、对于首次启动的黑屏问题，对于“黑屏”是否可以设计一个.9图片替换掉，间接减少用户等待时间。 
+
 4、对于网络错误界面，友好提示界面，使用ViewStub的方式，减少UI一次性绘制的压力。 
+
 5、通过下面这种方式进行懒加载
 
 6、Multidex的使用，也是拖慢启动速度的元凶，必须要做优化
